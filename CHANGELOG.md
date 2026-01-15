@@ -7,6 +7,42 @@ All notable changes to the Datum Galactic VPC project.
 
 ---
 
+## [1.2.3] - 2026-01-14
+
+### Added
+- **Comprehensive topology diagram** in `run_lab_demo.py`
+  - Separated Control Plane and Data Plane visualization
+  - Shows MQTT ↔ Agent ↔ Kernel ↔ Bridge ↔ FRR nodes flow
+  - Added MQTT Message Flow section with Protobuf examples
+  - Added "Communication Flow Details" explaining 4-step process:
+    1. MQTT Subscription (Agent ← Broker)
+    2. Kernel Route Programming (Agent → Linux Kernel)
+    3. Packet Forwarding (Kernel → FRR Nodes via Bridge)
+    4. Agent Registration (Agent → Broker)
+  - Added "Lab Testing: Protobuf Route Injection" section
+    - How test-mqtt-route.go works
+    - Example RouteUpdate Protobuf message
+    - Verification commands
+    - Alternative manual MQTT publish method
+- **Exit instructions** in interactive shell
+  - Shows `exit` and `Ctrl+D` options to return to demo
+
+---
+
+## [1.2.2] - 2026-01-14
+
+### Added
+- **Enhanced topology diagram** in `run_lab_demo.py`
+  - Added MQTT Broker and Galactic Agent to the diagram
+  - Shows connection between MQTT and Agent for route updates
+  - Displays real-time status of MQTT broker and galactic-agent
+  - Provides startup instructions if either service is not running
+- **New helper functions** in `run_lab_demo.py`
+  - `check_mqtt_running()` - Detects Mosquitto service or Docker container
+  - `check_agent_running()` - Detects running galactic-agent process
+
+---
+
 ## [1.2.1] - 2026-01-14
 
 ### Fixed

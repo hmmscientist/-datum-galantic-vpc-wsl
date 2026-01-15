@@ -509,44 +509,139 @@ def show_topology():
     print_header("Lab Topology")
     
     topology = """
-    ┌─────────────────────────────────────────────────────────────────────────────┐
-    │                    Galactic VPC Topology (SRv6)                             │
-    │                                                                             │
-    │  ┌───────────────┐                              ┌───────────────────────┐  │
-    │  │  MQTT Broker  │◄─────── Route Updates ──────►│   Galactic Agent      │  │
-    │  │  (Mosquitto)  │                              │   (galactic-agent)    │  │
-    │  │  Port: 1883   │                              │   Kernel Route Mgmt   │  │
-    │  └───────────────┘                              └───────────────────────┘  │
-    │                                                                             │
-    │    ┌─────────────────────────────────────────────────────────────────┐     │
-    │    │           VPC Backbone Bridge: galactic_v_1                     │     │
-    │    │           MTU: 9500 (Jumbo frames for SRv6)                     │     │
-    │    └─────────────────────────────────────────────────────────────────┘     │
-    │                                    │                                        │
-    │         ┌──────────────────────────┼──────────────────────────┐            │
-    │         │                          │                          │            │
-    │         ▼                          ▼                          ▼            │
-    │    ┌─────────┐              ┌─────────┐              ┌─────────┐          │
-    │    │   SJC   │              │   IAD   │              │   AMS   │          │
-    │    │San Jose │◄────────────►│N.Virginia│◄────────────►│Amsterdam│          │
-    │    │ (FRR)   │   ISIS/BGP   │ (FRR)   │   ISIS/BGP   │ (FRR)   │          │
-    │    └────┬────┘              └────┬────┘              └────┬────┘          │
-    │         │                        │                        │                │
-    │    Loopback:               Loopback:               Loopback:              │
-    │    10.255.0.1              10.255.0.2              10.255.0.3              │
-    │                                                                             │
-    │    SRv6 Locators:                                                          │
-    │    • SJC: fc00:0:1::/48                                                    │
-    │    • IAD: fc00:0:2::/48                                                    │
-    │    • AMS: fc00:0:3::/48                                                    │
-    │                                                                             │
-    │    Service Prefixes:                                                       │
-    │    • SJC: 192.168.1.0/24                                                   │
-    │    • AMS: 192.168.2.0/24                                                   │
-    │                                                                             │
-    └─────────────────────────────────────────────────────────────────────────────┘
+    ┌──────────────────────────────────────────────────────────────────────────────────────┐
+    │                         Galactic VPC Topology (SRv6)                                 │
+    │                                                                                      │
+    │  ┌─────────────────────────────────────────────────────────────────────────────────┐│
+    │  │                           CONTROL PLANE                                         ││
+    │  │                                                                                 ││
+    │  │  ┌───────────────┐    Protobuf/MQTT     ┌───────────────────────┐              ││
+    │  │  │  MQTT Broker  │◄────────────────────►│   Galactic Agent      │              ││
+    │  │  │  (Mosquitto)  │   Topic: galactic/   │   (galactic-agent)    │              ││
+    │  │  │  Port: 1883   │   routes/wsl         │                       │              ││
+    │  │  └───────┬───────┘                      └───────────┬───────────┘              ││
+    │  │          │                                          │                          ││
+    │  │          │ Subscribe:                               │ Programs routes via:     ││
+    │  │          │ galactic/routes/wsl                      │ • ip -6 route add        ││
+    │  │          │                                          │ • Netlink API            ││
+    │  │          │ Publish:                                 │ • SRv6 encap seg6        ││
+    │  │          │ galactic/register                        │                          ││
+    │  │          │                                          ▼                          ││
+    │  │          │                              ┌───────────────────────┐              ││
+    │  │          │                              │   Linux Kernel        │              ││
+    │  │          │                              │   Routing Table       │              ││
+    │  │          │                              │   (WSL2 Host)         │              ││
+    │  │          │                              └───────────┬───────────┘              ││
+    │  └──────────┼──────────────────────────────────────────┼───────────────────────────┘│
+    │             │                                          │                            │
+    │  ┌──────────┼──────────────────────────────────────────┼───────────────────────────┐│
+    │  │          │              DATA PLANE                  │                           ││
+    │  │          │                                          ▼                           ││
+    │  │          │      ┌─────────────────────────────────────────────────────┐        ││
+    │  │          │      │           VPC Backbone Bridge: galactic_v_1         │        ││
+    │  │          │      │           MTU: 9500 (Jumbo frames for SRv6)         │        ││
+    │  │          │      │           veth pairs connect containers             │        ││
+    │  │          │      └─────────────────────────────────────────────────────┘        ││
+    │  │          │                              │                                       ││
+    │  │          │       ┌──────────────────────┼──────────────────────┐               ││
+    │  │          │       │                      │                      │               ││
+    │  │          │       ▼                      ▼                      ▼               ││
+    │  │          │  ┌─────────┐          ┌─────────┐          ┌─────────┐             ││
+    │  │          │  │   SJC   │          │   IAD   │          │   AMS   │             ││
+    │  │          └─►│San Jose │◄────────►│N.Virginia│◄────────►│Amsterdam│             ││
+    │  │             │ (FRR)   │ ISIS/BGP │ (FRR)   │ ISIS/BGP │ (FRR)   │             ││
+    │  │             └────┬────┘          └────┬────┘          └────┬────┘             ││
+    │  │                  │                    │                    │                   ││
+    │  │             Loopback:            Loopback:            Loopback:               ││
+    │  │             10.255.0.1           10.255.0.2           10.255.0.3               ││
+    │  │             fc00:0:1::/48        fc00:0:2::/48        fc00:0:3::/48            ││
+    │  └────────────────────────────────────────────────────────────────────────────────┘│
+    │                                                                                      │
+    │  MQTT Message Flow (Protobuf):                                                       │
+    │  ┌────────────────────────────────────────────────────────────────────────────────┐ │
+    │  │ INBOUND (Cloud → Agent):                                                       │ │
+    │  │   Topic: galactic/routes/wsl                                                   │ │
+    │  │   Protobuf: RouteUpdate { prefix: "192.168.2.0/24", nexthop: "fc00:0:3::1" }   │ │
+    │  │   Action: Agent programs SRv6 route in kernel                                  │ │
+    │  │                                                                                │ │
+    │  │ OUTBOUND (Agent → Cloud):                                                      │ │
+    │  │   Topic: galactic/register                                                     │ │
+    │  │   Protobuf: RegisterRequest { node_id: "wsl", srv6_locator: "fc00::/48" }      │ │
+    │  │   Action: Agent registers with Datum cloud                                     │ │
+    │  └────────────────────────────────────────────────────────────────────────────────┘ │
+    │                                                                                      │
+    │  Service Prefixes:  SJC: 192.168.1.0/24  |  AMS: 192.168.2.0/24                     │
+    └──────────────────────────────────────────────────────────────────────────────────────┘
     """
     print(f"{Colors.CYAN}{topology}{Colors.ENDC}")
+    
+    # Print communication flow details
+    print(f"\n{Colors.BOLD}Communication Flow Details:{Colors.ENDC}")
+    comm_flow = """
+    ┌─────────────────────────────────────────────────────────────────────────────────────┐
+    │  HOW GALACTIC AGENT COMMUNICATES WITH NODES                                         │
+    ├─────────────────────────────────────────────────────────────────────────────────────┤
+    │                                                                                     │
+    │  1. MQTT SUBSCRIPTION (Agent ← Broker)                                              │
+    │     • Agent subscribes to: galactic/routes/wsl                                      │
+    │     • Receives Protobuf-encoded RouteUpdate messages                                │
+    │     • Message contains: prefix, nexthop (SRv6 SID), VPC ID, action (add/del)        │
+    │                                                                                     │
+    │  2. KERNEL ROUTE PROGRAMMING (Agent → Linux Kernel)                                 │
+    │     • Agent decodes Protobuf message                                                │
+    │     • Uses Netlink API to program routes:                                           │
+    │       ip -6 route add 192.168.2.0/24 encap seg6 mode encap segs fc00:0:3::1 dev lo  │
+    │     • Routes are installed in WSL2 host kernel routing table                        │
+    │                                                                                     │
+    │  3. PACKET FORWARDING (Kernel → FRR Nodes via Bridge)                               │
+    │     • Packets matching programmed routes get SRv6 encapsulated                      │
+    │     • Encapsulated packets sent to galactic_v_1 bridge                              │
+    │     • Bridge forwards to destination FRR container (SJC/IAD/AMS)                    │
+    │     • FRR nodes use ISIS to route between each other                                │
+    │                                                                                     │
+    │  4. AGENT REGISTRATION (Agent → Broker)                                             │
+    │     • Agent publishes to: galactic/register                                         │
+    │     • Sends Protobuf RegisterRequest with node capabilities                         │
+    │     • Cloud responds with initial route table                                       │
+    │                                                                                     │
+    └─────────────────────────────────────────────────────────────────────────────────────┘
+    """
+    print(f"{Colors.CYAN}{comm_flow}{Colors.ENDC}")
+    
+    # Print Protobuf injection details for lab testing
+    print(f"\n{Colors.BOLD}Lab Testing: Protobuf Route Injection via MQTT:{Colors.ENDC}")
+    protobuf_info = """
+    ┌─────────────────────────────────────────────────────────────────────────────────────┐
+    │  HOW TO INJECT ROUTES FOR TESTING (Using test-mqtt-route.go)                        │
+    ├─────────────────────────────────────────────────────────────────────────────────────┤
+    │                                                                                     │
+    │  1. The test script (test-mqtt-route.go) does:                                      │
+    │     • Creates a Protobuf RouteUpdate message                                        │
+    │     • Serializes it to binary format                                                │
+    │     • Publishes to MQTT topic: galactic/routes/wsl                                  │
+    │                                                                                     │
+    │  2. Run the test:                                                                   │
+    │     cd ~/datum/galantic-vpc                                                         │
+    │     go run test-mqtt-route.go                                                       │
+    │                                                                                     │
+    │  3. What gets injected (example):                                                   │
+    │     RouteUpdate {                                                                   │
+    │       prefix: "192.168.2.0/24"      # Destination network                           │
+    │       nexthop: "fc00:0:3::1"        # SRv6 SID of AMS node                          │
+    │       action: ADD                   # Add route (or DELETE to remove)               │
+    │       vpc_id: 1                     # VPC identifier                                │
+    │     }                                                                               │
+    │                                                                                     │
+    │  4. Verify route was programmed:                                                    │
+    │     ip -6 route show | grep 192.168                                                 │
+    │                                                                                     │
+    │  5. Alternative: Manual MQTT publish (without Protobuf):                            │
+    │     mosquitto_pub -t galactic/routes/wsl -f route_ams.bin                           │
+    │     (route_ams.bin contains pre-serialized Protobuf message)                        │
+    │                                                                                     │
+    └─────────────────────────────────────────────────────────────────────────────────────┘
+    """
+    print(f"{Colors.CYAN}{protobuf_info}{Colors.ENDC}")
     
     # Check and display MQTT status with instructions
     print(f"\n{Colors.BOLD}MQTT Broker Status:{Colors.ENDC}")
