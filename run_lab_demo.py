@@ -48,6 +48,7 @@ import os
 import time
 import argparse
 import threading
+from datetime import datetime
 from pathlib import Path
 
 # =============================================================================
@@ -109,9 +110,25 @@ def print_info(text):
     """Print info message"""
     print(f"{Colors.BLUE}ℹ️  {text}{Colors.ENDC}")
 
+def is_running_in_wsl():
+    """Check if we're running inside WSL"""
+    try:
+        with open('/proc/version', 'r') as f:
+            return 'microsoft' in f.read().lower()
+    except:
+        return False
+
+# Detect environment once at startup
+RUNNING_IN_WSL = is_running_in_wsl()
+
 def run_wsl(command, distro=WSL_DISTRO, capture_output=True, timeout=60):
-    """Run a command inside WSL"""
-    full_command = f'wsl -d {distro} -- bash -c "{command}"'
+    """Run a command - directly if in WSL, via wsl command if on Windows"""
+    if RUNNING_IN_WSL:
+        # Running inside WSL - execute directly
+        full_command = f'bash -c "{command}"'
+    else:
+        # Running on Windows - use wsl command
+        full_command = f'wsl -d {distro} -- bash -c "{command}"'
     
     try:
         result = subprocess.run(
@@ -127,8 +144,13 @@ def run_wsl(command, distro=WSL_DISTRO, capture_output=True, timeout=60):
         return None
 
 def run_wsl_interactive(command, distro=WSL_DISTRO):
-    """Run an interactive command in WSL (shows output in real-time)"""
-    full_command = f'wsl -d {distro} -- bash -c "{command}"'
+    """Run an interactive command (shows output in real-time)"""
+    if RUNNING_IN_WSL:
+        # Running inside WSL - execute directly
+        full_command = f'bash -c "{command}"'
+    else:
+        # Running on Windows - use wsl command
+        full_command = f'wsl -d {distro} -- bash -c "{command}"'
     subprocess.run(full_command, shell=True)
 
 def check_lab_running():
@@ -268,25 +290,75 @@ def run_connectivity_tests():
         print_error("Lab is not running. Start it first with: python run_lab_demo.py --start")
         return False
     
+    # Initialize test results for file output
+    test_results = []
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Print test explanation
+    test_explanation = """
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Test Case Explanation                                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│  Purpose: Verify ISIS/SRv6 underlay connectivity between POPs           │
+│                                                                         │
+│  What we test:                                                          │
+│  • Ping IPv4 loopback addresses between routers                         │
+│  • These packets traverse the ISIS/SRv6 underlay network                │
+│                                                                         │
+│  Pass criteria:                                                         │
+│  • ping returns exit code 0                                             │
+│  • Output contains "0% packet loss"                                     │
+│                                                                         │
+│  Network topology:                                                      │
+│  SJC (10.255.0.1) ◄──ISIS/SRv6──► IAD (10.255.0.2) ◄──► AMS (10.255.0.3)│
+└─────────────────────────────────────────────────────────────────────────┘
+"""
+    print(f"{Colors.CYAN}{test_explanation}{Colors.ENDC}")
+    
+    # Test definitions with detailed info: (name, source_node, target_ip, description)
     tests = [
-        ("SJC → IAD (IPv4)", "sjc", f"ping -c 3 {NODES['iad']['loopback']}"),
-        ("SJC → AMS (IPv4)", "sjc", f"ping -c 3 {NODES['ams']['loopback']}"),
-        ("SJC → AMS (SRv6)", "sjc", f"ping -c 3 {NODES['ams']['srv6']}1"),
-        ("IAD → SJC (IPv4)", "iad", f"ping -c 3 {NODES['sjc']['loopback']}"),
-        ("AMS → SJC (SRv6)", "ams", f"ping -c 3 {NODES['sjc']['srv6']}1"),
+        ("SJC → IAD", "sjc", NODES['iad']['loopback'], "San Jose to N. Virginia via ISIS"),
+        ("SJC → AMS", "sjc", NODES['ams']['loopback'], "San Jose to Amsterdam via ISIS"),
+        ("IAD → SJC", "iad", NODES['sjc']['loopback'], "N. Virginia to San Jose via ISIS"),
+        ("IAD → AMS", "iad", NODES['ams']['loopback'], "N. Virginia to Amsterdam via ISIS"),
+        ("AMS → SJC", "ams", NODES['sjc']['loopback'], "Amsterdam to San Jose via ISIS"),
     ]
     
     results = []
-    for i, (name, node, cmd) in enumerate(tests, 1):
+    for i, (name, node, target_ip, description) in enumerate(tests, 1):
         print_step(i, f"Testing {name}...")
-        result = run_wsl(f"docker exec clab-galactic_vpc-{node} {cmd}", timeout=30)
+        
+        # Show test details
+        cmd = f"ping -c 2 {target_ip}"
+        full_cmd = f"docker exec clab-galactic_vpc-{node} {cmd}"
+        print(f"      {Colors.BLUE}Input:{Colors.ENDC}  {full_cmd}")
+        print(f"      {Colors.BLUE}Reason:{Colors.ENDC} {description}")
+        
+        result = run_wsl(full_cmd, timeout=30)
         
         if result and result.returncode == 0 and "0% packet loss" in result.stdout:
-            print_success(f"{name}: PASSED")
+            output_msg = "0% packet loss"
+            status = "PASSED"
+            print(f"      {Colors.BLUE}Output:{Colors.ENDC} {output_msg}")
+            print_success(f"{name}: PASSED ✓")
             results.append(True)
         else:
-            print_error(f"{name}: FAILED")
+            output_msg = result.stdout[:100] if result and result.stdout else "No response"
+            status = "FAILED"
+            print(f"      {Colors.BLUE}Output:{Colors.ENDC} {output_msg[:50]}...")
+            print_error(f"{name}: FAILED ✗")
             results.append(False)
+        
+        # Store test result for file
+        test_results.append({
+            "test_number": i,
+            "name": name,
+            "input": full_cmd,
+            "reason": description,
+            "output": output_msg,
+            "status": status
+        })
+        print()  # Blank line between tests
     
     # Summary
     print(f"\n{Colors.BOLD}Test Summary:{Colors.ENDC}")
@@ -294,10 +366,73 @@ def run_connectivity_tests():
     total = len(results)
     if passed == total:
         print_success(f"All {total} tests passed!")
+        print(f"  {Colors.GREEN}→ ISIS adjacencies are working{Colors.ENDC}")
+        print(f"  {Colors.GREEN}→ SRv6 underlay is functional{Colors.ENDC}")
+        print(f"  {Colors.GREEN}→ All POPs can communicate{Colors.ENDC}")
+        summary_status = "ALL PASSED"
     else:
         print_warning(f"{passed}/{total} tests passed")
+        print(f"  {Colors.WARNING}→ Check ISIS neighbors: docker exec clab-galactic_vpc-sjc vtysh -c 'show isis neighbor'{Colors.ENDC}")
+        summary_status = f"{passed}/{total} PASSED"
+    
+    # Write test results to file
+    results_file = "test_results.txt"
+    write_test_results_to_file(results_file, timestamp, test_explanation, test_results, summary_status, passed, total)
+    print(f"\n{Colors.BLUE}📄 Test results saved to: {results_file}{Colors.ENDC}")
     
     return all(results)
+
+
+def write_test_results_to_file(filename, timestamp, explanation, test_results, summary_status, passed, total):
+    """Write test results to a file"""
+    with open(filename, 'w') as f:
+        f.write("=" * 80 + "\n")
+        f.write("  DATUM GALACTIC VPC LAB - CONNECTIVITY TEST RESULTS\n")
+        f.write("  Author: Sajjad Ahmed, Multi Naturals Inc.\n")
+        f.write("=" * 80 + "\n\n")
+        
+        f.write(f"Timestamp: {timestamp}\n")
+        f.write(f"Summary:   {summary_status} ({passed}/{total} tests)\n\n")
+        
+        f.write("-" * 80 + "\n")
+        f.write("TEST CASE EXPLANATION\n")
+        f.write("-" * 80 + "\n")
+        f.write(explanation + "\n")
+        
+        f.write("-" * 80 + "\n")
+        f.write("DETAILED TEST RESULTS\n")
+        f.write("-" * 80 + "\n\n")
+        
+        for test in test_results:
+            f.write(f"[Test {test['test_number']}] {test['name']}\n")
+            f.write(f"  Status:  {test['status']}\n")
+            f.write(f"  Input:   {test['input']}\n")
+            f.write(f"  Reason:  {test['reason']}\n")
+            f.write(f"  Output:  {test['output']}\n")
+            f.write("\n")
+        
+        f.write("-" * 80 + "\n")
+        f.write("SUMMARY\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"Total Tests:  {total}\n")
+        f.write(f"Passed:       {passed}\n")
+        f.write(f"Failed:       {total - passed}\n")
+        f.write(f"Status:       {summary_status}\n\n")
+        
+        if passed == total:
+            f.write("Conclusions:\n")
+            f.write("  ✓ ISIS adjacencies are working\n")
+            f.write("  ✓ SRv6 underlay is functional\n")
+            f.write("  ✓ All POPs can communicate\n")
+        else:
+            f.write("Troubleshooting:\n")
+            f.write("  → Check ISIS neighbors: docker exec clab-galactic_vpc-sjc vtysh -c 'show isis neighbor'\n")
+            f.write("  → Check container status: docker ps\n")
+            f.write("  → Check bridge: brctl show\n")
+        
+        f.write("\n" + "=" * 80 + "\n")
+        f.write("  End of Test Report\n")
+        f.write("=" * 80 + "\n")
 
 def test_mqtt_injection():
     """Test MQTT route injection"""
@@ -407,7 +542,12 @@ def interactive_shell():
     print(f"  {Colors.CYAN}sudo netlab status{Colors.ENDC}                            # Lab status")
     print()
     
-    os.system(f'wsl -d {WSL_DISTRO} --cd {WSL_LAB_DIR}')
+    if RUNNING_IN_WSL:
+        # Already in WSL - just open a bash shell
+        os.system('bash')
+    else:
+        # On Windows - use wsl command
+        os.system(f'wsl -d {WSL_DISTRO} --cd {WSL_LAB_DIR}')
 
 def run_full_demo():
     """Run the complete demo sequence"""

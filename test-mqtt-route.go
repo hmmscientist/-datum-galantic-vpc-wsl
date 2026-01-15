@@ -288,11 +288,11 @@ func main() {
 
 // publishToMQTT saves binary to file and publishes via mosquitto_pub
 func publishToMQTT(topic string, data []byte, filename string) {
-	// Write binary to current directory (avoids /tmp permission issues with sudo)
-	tmpFile := "./" + filename
+	// Write binary to /tmp with world-writable permissions
+	tmpFile := "/tmp/" + filename
 	
-	// Write binary data directly to file
-	err := os.WriteFile(tmpFile, data, 0666)
+	// Write binary data directly to file (0777 for any user to read/write)
+	err := os.WriteFile(tmpFile, data, 0777)
 	if err != nil {
 		fmt.Printf("   ❌ Failed to create binary file: %v\n", err)
 		// Provide manual command as fallback

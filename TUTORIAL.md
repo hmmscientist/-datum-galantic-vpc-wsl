@@ -186,29 +186,29 @@ A **Virtual Private Cloud (VPC)** is an isolated, private network within a share
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    SHARED PHYSICAL INFRASTRUCTURE                                │
-│                    (Datum's Global SRv6 Network)                                 │
-│                                                                                  │
-│   ┌─────────────────────────────┐    ┌─────────────────────────────┐           │
-│   │     CUSTOMER A's VPC        │    │     CUSTOMER B's VPC        │           │
-│   │     (VPC ID: 000000001)     │    │     (VPC ID: 000000002)     │           │
-│   │                             │    │                             │           │
-│   │  ┌─────────┐  ┌─────────┐  │    │  ┌─────────┐  ┌─────────┐  │           │
-│   │  │ SJC POP │  │ AMS POP │  │    │  │ IAD POP │  │ FRA POP │  │           │
-│   │  │ Attach  │  │ Attach  │  │    │  │ Attach  │  │ Attach  │  │           │
-│   │  │  0001   │  │  0002   │  │    │  │  0001   │  │  0002   │  │           │
-│   │  └────┬────┘  └────┬────┘  │    │  └────┬────┘  └────┬────┘  │           │
-│   │       │            │       │    │       │            │       │           │
-│   │       └─────┬──────┘       │    │       └─────┬──────┘       │           │
-│   │             │              │    │             │              │           │
-│   │    VRF Table 100           │    │    VRF Table 200           │           │
-│   │    192.168.1.0/24          │    │    10.0.0.0/8              │           │
-│   │    192.168.2.0/24          │    │    172.16.0.0/12           │           │
-│   │                             │    │                             │           │
-│   │    ✅ COMPLETELY ISOLATED  │    │    ✅ COMPLETELY ISOLATED  │           │
-│   │    Cannot see Customer B   │    │    Cannot see Customer A   │           │
-│   └─────────────────────────────┘    └─────────────────────────────┘           │
-│                                                                                  │
+│                    SHARED PHYSICAL INFRASTRUCTURE                               │
+│                    (Datum's Global SRv6 Network)                                │
+│                                                                                 │
+│   ┌─────────────────────────────┐    ┌─────────────────────────────┐            │
+│   │     CUSTOMER A's VPC        │    │     CUSTOMER B's VPC        │            │
+│   │     (VPC ID: 000000001)     │    │     (VPC ID: 000000002)     │            │
+│   │                             │    │                             │            │
+│   │  ┌─────────┐  ┌─────────┐   │    │  ┌─────────┐  ┌─────────┐   │            │
+│   │  │ SJC POP │  │ AMS POP │   │    │  │ IAD POP │  │ FRA POP │   │            │
+│   │  │ Attach  │  │ Attach  │   │    │  │ Attach  │  │ Attach  │   │            │
+│   │  │  0001   │  │  0002   │   │    │  │  0001   │  │  0002   │   │            │
+│   │  └────┬────┘  └────┬────┘   │    │  └────┬────┘  └────┬────┘   │            │
+│   │       │            │        │    │       │            │        │            │
+│   │       └─────┬──────┘        │    │       └─────┬──────┘        │            │
+│   │             │               │    │             │               │            │
+│   │    VRF Table 100            │    │    VRF Table 200            │            │
+│   │    192.168.1.0/24           │    │    10.0.0.0/8               │            │
+│   │    192.168.2.0/24           │    │    172.16.0.0/12            │            │
+│   │                             │    │                             │            │
+│   │    ✅ COMPLETELY ISOLATED  |    │    ✅ COMPLETELY ISOLATED   │            │
+│   │    Cannot see Customer B    │    │    Cannot see Customer A    │            │
+│   └─────────────────────────────┘    └─────────────────────────────┘            │
+│                                                                                 │
 │   Same physical routers, same cables, but LOGICALLY SEPARATED!                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -219,26 +219,26 @@ Datum uses **VRF (Virtual Routing and Forwarding)** combined with **SRv6** to im
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    DATUM VPC IMPLEMENTATION                                      │
-│                                                                                  │
+│                    DATUM VPC IMPLEMENTATION                                     │
+│                                                                                 │
 │   1. VPC ID (48 bits)           2. VPCAttachment ID (16 bits)                   │
-│      Identifies the customer       Identifies the POP location                   │
+│      Identifies the customer       Identifies the POP location                  │
 │      Example: 000000000001         Example: 0001 (SJC), 0002 (AMS)              │
-│                                                                                  │
+│                                                                                 │
 │   3. Combined into SRv6 Endpoint:                                               │
 │      fc00:0000:0000:0000:VVVV:VVVV:VVVV:AAAA                                    │
 │                         └─────VPC ID─────┘└─Attach─┘                            │
-│                                                                                  │
+│                                                                                 │
 │      Example: fc00::0000:0000:0001:0001                                         │
 │               = VPC 000000000001, Attachment 0001 (SJC)                         │
-│                                                                                  │
+│                                                                                 │
 │   4. VRF Interface Created:                                                     │
 │      G{vpc_base62}{attachment_base62}V                                          │
 │      Example: G000000001001V (table 100)                                        │
-│                                                                                  │
+│                                                                                 │
 │   5. Routes programmed into VRF:                                                │
-│      ip -6 route add 192.168.2.0/24 encap seg6 ... table 100                   │
-│                                                                                  │
+│      ip -6 route add 192.168.2.0/24 encap seg6 ... table 100                    │
+│                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -246,41 +246,41 @@ Datum uses **VRF (Virtual Routing and Forwarding)** combined with **SRv6** to im
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    SRv6 SEGMENT TYPES                                            │
-│                                                                                  │
+│                    SRv6 SEGMENT TYPES                                           │
+│                                                                                 │
 │   GLOBAL SEGMENTS (Underlay)              PER-VPC SEGMENTS (Overlay)            │
 │   ─────────────────────────               ──────────────────────────            │
 │   Shared by ALL customers                 Unique to EACH customer               │
-│                                                                                  │
+│                                                                                 │
 │   fc00:0:1::/48 → SJC POP                fc00::0000:0000:0001:0001              │
 │   fc00:0:2::/48 → IAD POP                = Customer A, SJC attachment           │
 │   fc00:0:3::/48 → AMS POP                                                       │
-│                                           fc00::0000:0000:0002:0001              │
-│   These are the "roads"                   = Customer B, SJC attachment           │
+│                                           fc00::0000:0000:0002:0001             │
+│   These are the "roads"                   = Customer B, SJC attachment          │
 │   Everyone uses the same                                                        │
-│   physical paths                          These are the "destinations"           │
-│                                           Each customer has unique ones          │
-│                                                                                  │
-│   ┌─────────────────────────────────────────────────────────────────────────┐  │
-│   │                                                                         │  │
-│   │   Customer A packet:                                                    │  │
-│   │   ┌──────────────────────────────────────────────────────────────────┐ │  │
-│   │   │ IPv6 Header: Dst = fc00::0000:0000:0001:0002 (Customer A, AMS)   │ │  │
-│   │   │ SRH: Segments = [fc00:0:3::] (Global: use AMS POP)               │ │  │
-│   │   │ Payload: Customer A's data                                       │ │  │
-│   │   └──────────────────────────────────────────────────────────────────┘ │  │
-│   │                                                                         │  │
-│   │   Customer B packet (same physical path, different VPC):               │  │
-│   │   ┌──────────────────────────────────────────────────────────────────┐ │  │
-│   │   │ IPv6 Header: Dst = fc00::0000:0000:0002:0002 (Customer B, AMS)   │ │  │
-│   │   │ SRH: Segments = [fc00:0:3::] (Global: use AMS POP)               │ │  │
-│   │   │ Payload: Customer B's data                                       │ │  │
-│   │   └──────────────────────────────────────────────────────────────────┘ │  │
-│   │                                                                         │  │
-│   │   Both use fc00:0:3:: (AMS) but end up in DIFFERENT VRFs!             │  │
-│   │                                                                         │  │
-│   └─────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                  │
+│   physical paths                          These are the "destinations"          │
+│                                           Each customer has unique ones         │
+│                                                                                 │
+│   ┌─────────────────────────────────────────────────────────────────────────┐   │
+│   │                                                                         │   │
+│   │   Customer A packet:                                                    │   │
+│   │   ┌──────────────────────────────────────────────────────────────────┐  │   │
+│   │   │ IPv6 Header: Dst = fc00::0000:0000:0001:0002 (Customer A, AMS)   │  │   │
+│   │   │ SRH: Segments = [fc00:0:3::] (Global: use AMS POP)               │  │   │
+│   │   │ Payload: Customer A's data                                       │  │   │
+│   │   └──────────────────────────────────────────────────────────────────┘  │   │
+│   │                                                                         │   │
+│   │   Customer B packet (same physical path, different VPC):                │   │
+│   │   ┌──────────────────────────────────────────────────────────────────┐  │   │
+│   │   │ IPv6 Header: Dst = fc00::0000:0000:0002:0002 (Customer B, AMS)   │  │   │
+│   │   │ SRH: Segments = [fc00:0:3::] (Global: use AMS POP)               │  │   │
+│   │   │ Payload: Customer B's data                                       │  │   │
+│   │   └──────────────────────────────────────────────────────────────────┘  │   │
+│   │                                                                         │   │
+│   │   Both use fc00:0:3:: (AMS) but end up in DIFFERENT VRFs!               │   │
+│   │                                                                         │   │
+│   └─────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -288,29 +288,29 @@ Datum uses **VRF (Virtual Routing and Forwarding)** combined with **SRv6** to im
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    HOW VPC ISOLATION WORKS                                       │
-│                                                                                  │
+│                    HOW VPC ISOLATION WORKS                                      │
+│                                                                                 │
 │   STEP 1: Packet arrives at POP with SRv6 destination                           │
 │   ─────────────────────────────────────────────────────                         │
 │   Dst: fc00::0000:0000:0001:0002 (Customer A, AMS attachment)                   │
-│                                                                                  │
+│                                                                                 │
 │   STEP 2: galactic-agent decodes the SRv6 endpoint                              │
 │   ─────────────────────────────────────────────────────                         │
 │   VPC ID:        000000000001 (from bits 16-63)                                 │
 │   Attachment ID: 0002 (from bits 0-15)                                          │
-│                                                                                  │
+│                                                                                 │
 │   STEP 3: Agent looks up VRF interface                                          │
 │   ─────────────────────────────────────────────────────                         │
 │   VRF Name: G000000001002V                                                      │
 │   VRF Table: 100                                                                │
-│                                                                                  │
+│                                                                                 │
 │   STEP 4: Packet delivered to Customer A's isolated network                     │
 │   ─────────────────────────────────────────────────────                         │
 │   Route lookup happens in TABLE 100 only                                        │
 │   Customer B's routes (TABLE 200) are INVISIBLE                                 │
-│                                                                                  │
+│                                                                                 │
 │   RESULT: Complete network isolation on shared infrastructure!                  │
-│                                                                                  │
+│                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
