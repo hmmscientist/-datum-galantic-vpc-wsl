@@ -7,6 +7,24 @@ All notable changes to the Datum Galactic VPC project.
 
 ---
 
+## [1.2.1] - 2026-01-14
+
+### Fixed
+- **PATH environment issue** in `run_lab_demo.py`
+  - Interactive shell now uses `bash --login` to preserve PATH
+  - Fixes issue where `netlab` command was not found after exiting containers
+  - Ensures `~/.local/bin` (where netlab is installed) remains in PATH
+
+### Added
+- **`.gitignore` file** for cleaner repository
+  - Excludes generated `.bin` files (route_ams.bin, route_iad.bin)
+  - Excludes `netlab.lock` and netlab snapshot files
+  - Excludes `clab-*/` containerlab directories
+  - Excludes Ansible generated files (host_vars/, group_vars/, hosts.yml)
+  - Excludes test output files, Python cache, Go build artifacts
+
+---
+
 ## [1.2.0] - 2026-01-14
 
 ### Added

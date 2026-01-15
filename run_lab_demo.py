@@ -543,11 +543,12 @@ def interactive_shell():
     print()
     
     if RUNNING_IN_WSL:
-        # Already in WSL - just open a bash shell
-        os.system('bash')
+        # Already in WSL - open a login shell that sources profile to preserve PATH
+        # Using bash --login ensures ~/.profile and ~/.bashrc are sourced
+        os.system('bash --login')
     else:
-        # On Windows - use wsl command
-        os.system(f'wsl -d {WSL_DISTRO} --cd {WSL_LAB_DIR}')
+        # On Windows - use wsl command with login shell
+        os.system(f'wsl -d {WSL_DISTRO} --cd {WSL_LAB_DIR} -- bash --login')
 
 def run_full_demo():
     """Run the complete demo sequence"""
