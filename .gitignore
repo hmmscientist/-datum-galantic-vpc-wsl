@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Netlab / Containerlab temporary files
+.clab/
+clab-*/
+clab.yml
+clab_files/
+ansible.cfg
+hosts.yml
+group_vars/
+host_vars/
+netlab.lock
+netlab.snapshot.yml
+netlab.snapshot.pickle
