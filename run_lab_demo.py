@@ -160,6 +160,21 @@ def check_lab_running():
         return True
     return False
 
+def check_mqtt_running():
+    """Check if MQTT broker (Mosquitto) is running"""
+    # Check for mosquitto service or docker container
+    result = run_wsl("pgrep -x mosquitto || docker ps --filter 'name=mqtt' --format '{{.Names}}' | grep -q mqtt && echo 'running'")
+    if result and result.stdout.strip():
+        return True
+    return False
+
+def check_agent_running():
+    """Check if galactic-agent is running"""
+    result = run_wsl("pgrep -f galactic-agent")
+    if result and result.stdout.strip():
+        return True
+    return False
+
 def wait_with_spinner(seconds, message):
     """Wait with a spinner animation"""
     spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -497,6 +512,12 @@ def show_topology():
     ┌─────────────────────────────────────────────────────────────────────────────┐
     │                    Galactic VPC Topology (SRv6)                             │
     │                                                                             │
+    │  ┌───────────────┐                              ┌───────────────────────┐  │
+    │  │  MQTT Broker  │◄─────── Route Updates ──────►│   Galactic Agent      │  │
+    │  │  (Mosquitto)  │                              │   (galactic-agent)    │  │
+    │  │  Port: 1883   │                              │   Kernel Route Mgmt   │  │
+    │  └───────────────┘                              └───────────────────────┘  │
+    │                                                                             │
     │    ┌─────────────────────────────────────────────────────────────────┐     │
     │    │           VPC Backbone Bridge: galactic_v_1                     │     │
     │    │           MTU: 9500 (Jumbo frames for SRv6)                     │     │
@@ -526,6 +547,30 @@ def show_topology():
     └─────────────────────────────────────────────────────────────────────────────┘
     """
     print(f"{Colors.CYAN}{topology}{Colors.ENDC}")
+    
+    # Check and display MQTT status with instructions
+    print(f"\n{Colors.BOLD}MQTT Broker Status:{Colors.ENDC}")
+    mqtt_running = check_mqtt_running()
+    if mqtt_running:
+        print_success("MQTT broker (Mosquitto) is running on port 1883")
+    else:
+        print_warning("MQTT broker is NOT running")
+        print(f"  {Colors.CYAN}To start MQTT broker:{Colors.ENDC}")
+        print(f"    Option 1 (Docker):   docker run -d --name mqtt -p 1883:1883 eclipse-mosquitto:2")
+        print(f"    Option 2 (Service):  sudo apt install mosquitto && sudo service mosquitto start")
+    
+    # Check and display Galactic Agent status with instructions
+    print(f"\n{Colors.BOLD}Galactic Agent Status:{Colors.ENDC}")
+    agent_running = check_agent_running()
+    if agent_running:
+        print_success("Galactic Agent is running")
+    else:
+        print_warning("Galactic Agent is NOT running")
+        print(f"  {Colors.CYAN}To start Galactic Agent:{Colors.ENDC}")
+        print(f"    cd {WSL_LAB_DIR}/galactic-agent")
+        print(f"    sudo ./galactic-agent --config config.yaml")
+        print(f"  {Colors.CYAN}Or from lab directory:{Colors.ENDC}")
+        print(f"    sudo ./galactic-agent/galactic-agent --config galactic-agent/config.yaml")
 
 def interactive_shell():
     """Open an interactive shell in WSL"""
@@ -540,6 +585,10 @@ def interactive_shell():
     print(f"  {Colors.CYAN}brctl show{Colors.ENDC}                                    # Show bridges")
     print(f"  {Colors.CYAN}ip -6 route show{Colors.ENDC}                              # Show IPv6 routes")
     print(f"  {Colors.CYAN}sudo netlab status{Colors.ENDC}                            # Lab status")
+    print()
+    print(f"{Colors.BOLD}To Exit:{Colors.ENDC}")
+    print(f"  {Colors.CYAN}exit{Colors.ENDC}                                          # Return to demo")
+    print(f"  {Colors.CYAN}Ctrl+D{Colors.ENDC}                                        # Alternative exit")
     print()
     
     if RUNNING_IN_WSL:
