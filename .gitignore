@@ -14,3 +14,20 @@ host_vars/
 netlab.lock
 netlab.snapshot.yml
 netlab.snapshot.pickle
+
+# Generated binary files (route binaries created during testing)
+*.bin
+route_*.bin
+
+# Test output files
+test_results.txt
+
+# Go build artifacts
+galactic-agent/galactic-agent
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
